@@ -1,112 +1,386 @@
-<?php
-// attendance.php
-
-// Check if the attendance data is being submitted
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $name = $_POST['name'];
-    $timestamp = date("Y-m-d H:i:s");
-
-    // Save attendance data to a CSV file
-    $file = fopen("attendance.csv", "a");
-    fputcsv($file, [$name, $timestamp]);
-    fclose($file);
-
-    echo json_encode(["status" => "success", "message" => "Attendance recorded for $name."]);
-    exit;
-}
-?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Facial Recognition Attendance</title>
-    <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
-    <style>
-        body {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            background-color: #f0f0f0;
-            font-family: Arial, sans-serif;
-        }
-        video {
-            width: 640px;
-            height: 480px;
-            border: 2px solid #ccc;
-        }
-        button {
-            margin-top: 20px;
-            padding: 10px 20px;
-            font-size: 16px;
-        }
-    </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Facial Recognition Attendance - Android Friendly</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+  /* Reset and base */
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(135deg, #1f2937, #111827);
+    color: #f9fafb;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    background: rgba(31, 41, 55, 0.85);
+    backdrop-filter: saturate(180%) blur(10px);
+    padding: 24px 32px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    border-bottom: 1px solid #374151;
+  }
+  header h1 {
+    font-weight: 700;
+    font-size: 1.8rem;
+    margin: 0;
+    color: #10b981; /* teal-500 */
+    user-select: none;
+  }
+  main {
+    flex-grow: 1;
+    max-width: 1000px;
+    width: 100%;
+    margin: 32px auto;
+    padding: 0 16px;
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 32px;
+  }
+  @media (max-width: 900px) {
+    main {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* Video container & overlays */
+  .video-container {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    max-width: 100%;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.5);
+    background: #000;
+  }
+  video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+  }
+
+  /* Attendance panel */
+  .attendance-panel {
+    background: rgba(17, 24, 39, 0.85);
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(16, 185, 129, 0.3);
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
+    height: fit-content;
+  }
+  .attendance-panel h2 {
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+    border-bottom: 2px solid #10b981;
+    padding-bottom: 8px;
+  }
+  .attendance-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    flex-grow: 1;
+    overflow-y: auto;
+    max-height: 500px;
+    border-radius: 8px;
+    background: #111827;
+    box-shadow: inset 0 0 10px #065f46;
+  }
+  .attendance-list li {
+    padding: 12px 16px;
+    border-bottom: 1px solid #065f46;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .attendance-list li:last-child {
+    border-bottom: none;
+  }
+  .attendance-name {
+    font-weight: 600;
+  }
+  .attendance-time {
+    font-size: 0.875rem;
+    color: #6b7280;
+    font-family: monospace;
+  }
+
+  /* Status bar */
+  .status-bar {
+    margin-top: 16px;
+    font-size: 1rem;
+    font-weight: 500;
+    color: #34d399;
+    min-height: 24px;
+  }
+
+  /* Buttons */
+  button {
+    background: #10b981;
+    border: none;
+    border-radius: 12px;
+    color: #f9fafb;
+    padding: 12px 20px;
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+  }
+  button:focus-visible {
+    outline: 3px solid #22c55e;
+    outline-offset: 2px;
+  }
+  button:hover:not(:disabled) {
+    background: #059669;
+  }
+  button:disabled {
+    background: #064e3b;
+    cursor: not-allowed;
+  }
+  .btn-container {
+    margin-top: 16px;
+    display: flex;
+    justify-content: center;
+  }
+
+  /* Scrollbar */
+  .attendance-list::-webkit-scrollbar {
+    width: 8px;
+  }
+  .attendance-list::-webkit-scrollbar-thumb {
+    background-color: #10b981;
+    border-radius: 4px;
+  }
+
+  /* Mobile touch optimization */
+  @media (max-width: 640px) {
+    button {
+      padding: 16px 28px;
+      font-size: 1.2rem;
+    }
+    main {
+      margin: 16px auto;
+      padding: 0 12px;
+    }
+  }
+</style>
 </head>
 <body>
-    <h1>Facial Recognition Attendance</h1>
-    <video id="video" autoplay muted></video>
-    <button id="capture">Capture Attendance</button>
-    <div id="message"></div>
 
-    <script>
-        const video = document.getElementById('video');
-        const messageDiv = document.getElementById('message');
-        const captureButton = document.getElementById('capture');
+<header>
+  <h1>Facial Recognition Attendance (Android Optimized)</h1>
+</header>
 
-        // Load face-api.js models
-        Promise.all([
-            faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
-            faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
-            faceapi.nets.faceRecognitionNet.loadFromUri('/models')
-        ]).then(startVideo);
+<main>
+  <section class="video-container" aria-label="Webcam live feed with facial recognition overlay">
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="overlay"></canvas>
+  </section>
 
-        function startVideo() {
-            navigator.mediaDevices.getUser Media({ video: {} })
-                .then(stream => {
-                    video.srcObject = stream;
-                });
-        }
+  <aside class="attendance-panel" aria-live="polite" aria-atomic="true">
+    <h2>Attendance Log</h2>
+    <ul id="attendanceList" class="attendance-list" role="list" aria-label="List of attendees with check-in times"></ul>
+    <div class="status-bar" aria-live="polite" id="status">Loading models...</div>
+    <div class="btn-container">
+      <button id="startBtn" disabled aria-disabled="true">Start Recognition</button>
+    </div>
+  </aside>
+</main>
 
-        captureButton.addEventListener('click', async () => {
-            const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
-            if (detections.length > 0) {
-                const faceDescriptor = detections[0].descriptor;
-                // Here you would compare the faceDescriptor with known faces
-                // For simplicity, we will assume a known user "John Doe"
-                const knownFaceDescriptor = [/* Add known face descriptor here */];
+<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script>
+  'use strict';
 
-                // Compare and recognize
-                const distance = faceapi.euclideanDistance(faceDescriptor, knownFaceDescriptor);
-                if (distance < 0.6) { // Threshold for recognition
-                    const name = "John Doe"; // Recognized name
-                    recordAttendance(name);
-                } else {
-                    messageDiv.innerText = "Face not recognized.";
-                }
-            } else {
-                messageDiv.innerText = "No face detected.";
+  const video = document.getElementById('video');
+  const overlay = document.getElementById('overlay');
+  const attendanceList = document.getElementById('attendanceList');
+  const statusBar = document.getElementById('status');
+  const startBtn = document.getElementById('startBtn');
+  const overlayCtx = overlay.getContext('2d');
+
+  let labeledDescriptors = null;
+  const attendanceMap = new Map();
+
+  const faceDetectionOptions = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.6 });
+
+  function addAttendance(name) {
+    if (!attendanceMap.has(name)) {
+      const timeNow = new Date();
+      attendanceMap.set(name, timeNow);
+      const li = document.createElement('li');
+      li.innerHTML = `<span class="attendance-name">${name}</span> <span class="attendance-time">${timeNow.toLocaleTimeString()}</span>`;
+      attendanceList.appendChild(li);
+      statusBar.textContent = `Attendance recorded for: ${name}`;
+    }
+  }
+
+  async function loadLabeledImages() {
+    const labels = ['Alice Smith', 'Bob Johnson'];
+    return Promise.all(
+      labels.map(async label => {
+        const descriptions = [];
+        for (let i = 1; i <= 2; i++) {
+          const imgUrl = `https://raw.githubusercontent.com/WebDevSimplified/Face-Recognition-JavaScript/master/labeled_images/${label}/${i}.jpg`;
+          try {
+            const img = await faceapi.fetchImage(imgUrl);
+            const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
+            if (!detection) {
+              console.warn(`No face detected in a labeled image: ${label} image ${i}`);
+              continue;
             }
+            descriptions.push(detection.descriptor);
+          } catch (e) {
+            console.warn(`Error loading or processing image for ${label}: ${e.message}`);
+          }
+        }
+        return new faceapi.LabeledFaceDescriptors(label, descriptions);
+      })
+    );
+  }
+
+  function resizeCanvas() {
+    overlay.width = video.videoWidth;
+    overlay.height = video.videoHeight;
+  }
+
+  async function startVideo() {
+    try {
+      // Video constraints with facingMode for Android devices:
+      // Front camera ("user") common for attendance selfie capture
+      // Can be modified to "environment" for rear camera if needed
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: "user"
+        }, 
+        audio: false 
+      });
+      video.srcObject = stream;
+      return new Promise((resolve) => {
+        video.onloadedmetadata = () => {
+          resizeCanvas();
+          resolve();
+        };
+      });
+    } catch (error) {
+      alert('Cannot access camera: ' + error.message);
+      statusBar.textContent = 'Camera access denied or not available.';
+      throw error;
+    }
+  }
+
+  async function recognizeFaces() {
+    statusBar.textContent = 'Recognition running…';
+    const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.6);
+
+    attendanceList.innerHTML = '';
+    attendanceMap.clear();
+
+    const displaySize = { width: video.videoWidth, height: video.videoHeight };
+    faceapi.matchDimensions(overlay, displaySize);
+
+    async function onPlay() {
+      if (video.paused || video.ended) {
+        return setTimeout(() => onPlay(), 100);
+      }
+
+      const detections = await faceapi.detectAllFaces(video, faceDetectionOptions)
+        .withFaceLandmarks()
+        .withFaceDescriptors();
+
+      overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+
+      if (detections.length > 0) {
+        const resizedDetections = faceapi.resizeResults(detections, displaySize);
+
+        resizedDetections.forEach(detection => {
+          const box = detection.detection.box;
+          const drawBox = new faceapi.draw.DrawBox(box, { label: 'Detecting...' });
+          drawBox.draw(overlayCtx);
         });
 
-        function recordAttendance(name) {
-            fetch('attendance.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: `name=${name}`
-            })
-            .then(response => response.json())
-            .then(data => {
-                messageDiv.innerText = data.message;
-            });
-        }
-    </script>
+        resizedDetections.forEach(detection => {
+          const bestMatch = faceMatcher.findBestMatch(detection.descriptor);
+          const box = detection.detection.box;
+          const text = bestMatch.label === 'unknown' ? 'Unknown' : bestMatch.label;
+          const drawBox = new faceapi.draw.DrawBox(box, { label: text });
+          drawBox.draw(overlayCtx);
+
+          if (bestMatch.label !== 'unknown') {
+            addAttendance(bestMatch.label);
+          }
+        });
+
+      } else {
+        statusBar.textContent = 'No faces detected.';
+      }
+
+      requestAnimationFrame(onPlay);
+    }
+
+    onPlay();
+  }
+
+  async function init() {
+    try {
+      await faceapi.nets.ssdMobilenetv1.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/models/');
+      await faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/models/');
+      await faceapi.nets.faceRecognitionNet.loadFromUri('https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/models/');
+      statusBar.textContent = 'Models loaded. Loading labeled images...';
+
+      labeledDescriptors = await loadLabeledImages();
+
+      if (!labeledDescriptors || labeledDescriptors.length === 0) {
+        statusBar.textContent = 'No labeled faces found. Recognition will not work properly.';
+      } else {
+        statusBar.textContent = 'Labeled images loaded. Waiting to start.';
+      }
+
+      await startVideo();
+      startBtn.disabled = false;
+      startBtn.setAttribute('aria-disabled', 'false');
+      statusBar.textContent = 'Ready. Click "Start Recognition".';
+    } catch (error) {
+      console.error(error);
+      statusBar.textContent = 'Error loading models or camera.';
+    }
+  }
+
+  startBtn.addEventListener('click', async () => {
+    startBtn.disabled = true;
+    startBtn.setAttribute('aria-disabled', 'true');
+    await recognizeFaces();
+  });
+
+  window.addEventListener('load', () => {
+    init();
+  });
+
+  window.addEventListener('resize', () => {
+    if (video.videoWidth && video.videoHeight) {
+      resizeCanvas();
+    }
+  });
+</script>
+
 </body>
 </html>
-
 
