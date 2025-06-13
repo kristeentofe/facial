@@ -1,0 +1,110 @@
+<?php
+// attendance.php
+
+// Check if the attendance data is being submitted
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $name = $_POST['name'];
+    $timestamp = date("Y-m-d H:i:s");
+
+    // Save attendance data to a CSV file
+    $file = fopen("attendance.csv", "a");
+    fputcsv($file, [$name, $timestamp]);
+    fclose($file);
+
+    echo json_encode(["status" => "success", "message" => "Attendance recorded for $name."]);
+    exit;
+}
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facial Recognition Attendance</title>
+    <script defer src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        video {
+            width: 640px;
+            height: 480px;
+            border: 2px solid #ccc;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Facial Recognition Attendance</h1>
+    <video id="video" autoplay muted></video>
+    <button id="capture">Capture Attendance</button>
+    <div id="message"></div>
+
+    <script>
+        const video = document.getElementById('video');
+        const messageDiv = document.getElementById('message');
+        const captureButton = document.getElementById('capture');
+
+        // Load face-api.js models
+        Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
+            faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
+            faceapi.nets.faceRecognitionNet.loadFromUri('/models')
+        ]).then(startVideo);
+
+        function startVideo() {
+            navigator.mediaDevices.getUser Media({ video: {} })
+                .then(stream => {
+                    video.srcObject = stream;
+                });
+        }
+
+        captureButton.addEventListener('click', async () => {
+            const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
+            if (detections.length > 0) {
+                const faceDescriptor = detections[0].descriptor;
+                // Here you would compare the faceDescriptor with known faces
+                // For simplicity, we will assume a known user "John Doe"
+                const knownFaceDescriptor = [/* Add known face descriptor here */];
+
+                // Compare and recognize
+                const distance = faceapi.euclideanDistance(faceDescriptor, knownFaceDescriptor);
+                if (distance < 0.6) { // Threshold for recognition
+                    const name = "John Doe"; // Recognized name
+                    recordAttendance(name);
+                } else {
+                    messageDiv.innerText = "Face not recognized.";
+                }
+            } else {
+                messageDiv.innerText = "No face detected.";
+            }
+        });
+
+        function recordAttendance(name) {
+            fetch('attendance.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `name=${name}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                messageDiv.innerText = data.message;
+            });
+        }
+    </script>
+</body>
+</html>
